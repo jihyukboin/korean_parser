@@ -1,8 +1,3 @@
-# pip install -U docling docling-ibm-models
-# (스캔 PDF인 경우) 시스템에 tesseract가 설치되어 있어야 합니다.
-#   mac: brew install tesseract
-#   ubuntu/debian: sudo apt-get install tesseract-ocr tesseract-ocr-kor
-
 from pathlib import Path
 
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -13,17 +8,20 @@ def pdf_to_html(src_pdf: Path, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     out_html = out_dir / f"{src_pdf.stem}.html"
 
-    # 스캔 여부에 따라 OCR 사용 결정
-    # - 디지털(텍스트 내장) PDF면 do_ocr=False 권장
-    # - 스캔/이미지 기반 PDF면 do_ocr=True, 언어를 자동/한국어로 설정
     pipeline_options = PdfPipelineOptions(
-        do_ocr=False,                      # 스캔 문서라면 True
-        force_full_page_ocr=False,        # 전면 OCR이 필요하면 True
+        # OCR 관련 설정
+        do_ocr=True,
+        force_full_page_ocr=True,
+        ocr_image_dpi=300,  # <<<--- 1. OCR을 위한 이미지 해상도를 300 DPI로 설정
+
         ocr_options=TesseractCliOcrOptions(
-            # 한국어 전용: ["kor"], 자동 감지: ["auto"]
-            lang=["kor"]
+            lang=["auto"],
+            # <<<--- 2. Tesseract에 직접 옵션 전달 (페이지 분석 모드 최적화)
+            user_defined_options=["--psm 1"] 
         ),
-        do_table_structure=True           # 표 구조 추출
+        
+        # 테이블 구조 추출
+        do_table_structure=True
     )
 
     converter = DocumentConverter(
@@ -34,14 +32,11 @@ def pdf_to_html(src_pdf: Path, out_dir: Path) -> Path:
 
     result = converter.convert(src_pdf)
     doc = result.document
-
-    # 파일로 저장 (문자열이 필요하면 doc.export_to_html())
     doc.save_as_html(out_html)
-
     return out_html
 
 if __name__ == "__main__":
-    src = Path("asset") / "국어.pdf"
+    src = Path("asset") / "science.pdf"
     dst = Path("asset") / "html"
     out_path = pdf_to_html(src, dst)
     print(f"HTML 저장 완료: {out_path.resolve()}")
